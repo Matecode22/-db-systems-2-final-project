@@ -1,45 +1,132 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const subjectCode = searchParams.get("subjectCode")
+    console.log("🔍 Fetching groups from Supabase...")
 
-    const supabase = createServerSupabaseClient()
+    // Primero, intentar obtener la estructura de la tabla groups
+    const { data: groupsStructure, error: structureError } = await supabase.from("groups").select("*").limit(1)
 
-    let query = supabase.from("GROUPS").select(`
-      number,
-      semester,
-      subject_code,
-      professor_id,
-      EMPLOYEES(first_name, last_name)
-    `)
-
-    // Filtrar por asignatura si se proporciona el código
-    if (subjectCode) {
-      query = query.eq("subject_code", subjectCode)
+    if (structureError) {
+      console.error("Error checking groups structure:", structureError)
+      return NextResponse.json(
+        {
+          error: "Error accessing groups table",
+          details: structureError.message,
+          suggestion: "Verifica que la tabla 'groups' existe en Supabase",
+        },
+        { status: 500 },
+      )
     }
 
-    const { data, error } = await query
+    // Detectar las columnas disponibles
+    const availableColumns = groupsStructure && groupsStructure.length > 0 ? Object.keys(groupsStructure[0]) : []
+    console.log("📋 Available columns in groups table:", availableColumns)
 
-    if (error) {
-      console.error("Error fetching groups:", error)
-      return NextResponse.json({ error: "Error al obtener los grupos" }, { status: 500 })
+    // Mapear nombres de columnas comunes
+    const columnMapping = {
+      id: availableColumns.find((col) => col.toLowerCase().includes("id") && !col.includes("_")) || availableColumns[0],
+      subject_id: availableColumns.find((col) => col.toLowerCase().includes("subject")) || "subject_id",
+      employee_id: availableColumns.find((col) => col.toLowerCase().includes("employee")) || "employee_id",
+      campus_id: availableColumns.find((col) => col.toLowerCase().includes("campus")) || "campus_id",
+      group_number: availableColumns.find((col) => col.toLowerCase().includes("group")) || "group_number",
+      semester: availableColumns.find((col) => col.toLowerCase().includes("semester")) || "semester",
+      year: availableColumns.find((col) => col.toLowerCase().includes("year")) || "year",
     }
 
-    // Transformar los datos para incluir el nombre del profesor
-    const transformedData = data.map((group) => ({
-      number: group.number,
-      semester: group.semester,
-      subject_code: group.subject_code,
-      professor_id: group.professor_id,
-      professor_name: group.EMPLOYEES ? `${group.EMPLOYEES.first_name} ${group.EMPLOYEES.last_name}` : null,
-    }))
+    console.log("🗺️ Column mapping:", columnMapping)
 
-    return NextResponse.json(transformedData)
-  } catch (error: any) {
-    console.error("Error in groups API:", error)
-    return NextResponse.json({ error: error.message || "Error interno del servidor" }, { status: 500 })
+    // Obtener todos los grupos usando las columnas detectadas
+    const { data: groups, error: groupsError } = await supabase.from("groups").select("*").order(columnMapping.id)
+
+    if (groupsError) {
+      console.error("Error fetching groups:", groupsError)
+      return NextResponse.json(
+        {
+          error: "Error fetching groups",
+          details: groupsError.message,
+          availableColumns,
+        },
+        { status: 500 },
+      )
+    }
+
+    console.log(`📊 Found ${groups?.length || 0} groups`)
+
+    // Obtener materias
+    const { data: subjects, error: subjectsError } = await supabase.from("subjects").select("*")
+
+    if (subjectsError) {
+      console.warn("Error fetching subjects:", subjectsError.message)
+    }
+
+    // Obtener empleados
+    const { data: employees, error: employeesError } = await supabase.from("employees").select("*")
+
+    if (employeesError) {
+      console.warn("Error fetching employees:", employeesError.message)
+    }
+
+    // Obtener campus
+    const { data: campuses, error: campusesError } = await supabase.from("campuses").select("*")
+
+    if (campusesError) {
+      console.warn("Error fetching campuses:", campusesError.message)
+    }
+
+    // Formatear los datos usando el mapeo de columnas
+    const formattedGroups =
+      groups?.map((group) => {
+        const subject = subjects?.find((s) => s.id === group[columnMapping.subject_id])
+        const employee = employees?.find((e) => e.id === group[columnMapping.employee_id])
+        const campus = campuses?.find((c) => c.id === group[columnMapping.campus_id])
+
+        return {
+          id: group[columnMapping.id],
+          subject_id: group[columnMapping.subject_id],
+          group_number: group[columnMapping.group_number] || "N/A",
+          semester: group[columnMapping.semester] || "N/A",
+          year: group[columnMapping.year] || new Date().getFullYear(),
+          employee_id: group[columnMapping.employee_id],
+          campus_id: group[columnMapping.campus_id],
+          subject_name: subject?.name || "Materia Desconocida",
+          subject_code: subject?.code || "N/A",
+          professor_name: employee
+            ? `${employee.first_name || ""} ${employee.last_name || ""}`.trim()
+            : "Profesor Desconocido",
+          campus_name: campus?.name || "Campus Desconocido",
+          // Incluir datos originales para debug
+          _original: group,
+          _columns: availableColumns,
+        }
+      }) || []
+
+    console.log(`✅ Successfully formatted ${formattedGroups.length} groups`)
+
+    return NextResponse.json({
+      success: true,
+      groups: formattedGroups,
+      metadata: {
+        totalGroups: formattedGroups.length,
+        availableColumns,
+        columnMapping,
+        tablesAccessed: {
+          groups: !!groups,
+          subjects: !!subjects,
+          employees: !!employees,
+          campuses: !!campuses,
+        },
+      },
+    })
+  } catch (error) {
+    console.error("Unexpected error in groups API:", error)
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }

@@ -1,64 +1,150 @@
-import Link from "next/link"
+"use client"
+
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { BookOpen, Calculator, TrendingUp, Users } from "lucide-react"
+import Link from "next/link"
 
-export default function Home() {
+interface DashboardStats {
+  totalSubjects: number
+  averageGrade: number
+  completedActivities: number
+  pendingActivities: number
+}
+
+export default function Dashboard() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+  const [stats, setStats] = useState<DashboardStats>({
+    totalSubjects: 0,
+    averageGrade: 0,
+    completedActivities: 0,
+    pendingActivities: 0,
+  })
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin")
+    }
+  }, [status, router])
+
+  useEffect(() => {
+    if (session?.user) {
+      fetchDashboardStats()
+    }
+  }, [session])
+
+  const fetchDashboardStats = async () => {
+    try {
+      const response = await fetch("/api/dashboard/stats")
+      if (response.ok) {
+        const data = await response.json()
+        setStats(data)
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error)
+    }
+  }
+
+  if (status === "loading") {
+    return <div className="flex items-center justify-center min-h-screen">Cargando...</div>
+  }
+
+  if (!session) {
+    return null
+  }
+
   return (
-    <div className="flex flex-col min-h-screen">
-      <header className="bg-primary text-primary-foreground py-4 px-6 shadow-md">
-        <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Trackademic</h1>
-          <div className="space-x-2">
-            <Link href="/login">
-              <Button variant="outline" className="bg-primary-foreground text-primary">
-                Iniciar Sesión
-              </Button>
-            </Link>
-            <Link href="/register">
-              <Button>Registrarse</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
+    <div className="container mx-auto p-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Bienvenido, {session.user?.name}</h1>
+        <p className="text-gray-600 mt-2">Gestiona tus notas académicas de manera eficiente</p>
+      </div>
 
-      <main className="flex-grow container mx-auto px-4 py-8">
-        <section className="max-w-4xl mx-auto text-center py-12">
-          <h2 className="text-4xl font-bold mb-6">Gestiona tus notas académicas</h2>
-          <p className="text-xl mb-8">
-            Trackademic te ayuda a organizar y calcular tus notas para que siempre sepas cómo vas en tus cursos.
-          </p>
-          <div className="flex justify-center gap-4">
-            <Link href="/register">
-              <Button size="lg">Comenzar ahora</Button>
-            </Link>
-            <Link href="/about">
-              <Button variant="outline" size="lg">
-                Conocer más
-              </Button>
-            </Link>
-          </div>
-        </section>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Materias Activas</CardTitle>
+            <BookOpen className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalSubjects}</div>
+          </CardContent>
+        </Card>
 
-        <section className="grid md:grid-cols-3 gap-8 py-12">
-          <div className="bg-card p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-bold mb-3">Planes de evaluación</h3>
-            <p>Crea y gestiona planes de evaluación para tus cursos con porcentajes personalizados.</p>
-          </div>
-          <div className="bg-card p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-bold mb-3">Cálculo de notas</h3>
-            <p>Calcula automáticamente tus notas finales basadas en los porcentajes de cada evaluación.</p>
-          </div>
-          <div className="bg-card p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-bold mb-3">Colaboración</h3>
-            <p>Comparte planes de evaluación con tus compañeros y comenta en los planes de otros.</p>
-          </div>
-        </section>
-      </main>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Promedio General</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.averageGrade.toFixed(1)}</div>
+          </CardContent>
+        </Card>
 
-      <footer className="bg-muted py-6 px-4">
-        <div className="container mx-auto text-center">
-          <p>© 2023 Trackademic - Todos los derechos reservados</p>
-        </div>
-      </footer>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Actividades Completadas</CardTitle>
+            <Calculator className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.completedActivities}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Actividades Pendientes</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.pendingActivities}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Gestionar Notas</CardTitle>
+            <CardDescription>Ingresa y edita las notas de tus materias</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/grades">
+              <Button className="w-full">Ver Notas</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Planes de Evaluación</CardTitle>
+            <CardDescription>Crea y gestiona planes de evaluación</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/evaluation-plans">
+              <Button className="w-full">Gestionar Planes</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Informes</CardTitle>
+            <CardDescription>Visualiza estadísticas y reportes</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/reports">
+              <Button className="w-full">Ver Informes</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
