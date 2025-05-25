@@ -34,33 +34,74 @@ export default function RegisterPage() {
       return
     }
 
+    // Validar formato de correo electrónico
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      setError("Por favor, ingresa un correo electrónico válido")
+      setLoading(false)
+      return
+    }
+
+    // Validar que no sea un dominio de ejemplo
+    const exampleDomains = ['example.com', 'test.com', 'demo.com']
+    const emailDomain = email.split('@')[1]
+    if (exampleDomains.includes(emailDomain)) {
+      setError("Por favor, usa un correo electrónico con un dominio válido")
+      setLoading(false)
+      return
+    }
+
     try {
       const supabase = getSupabaseClient()
 
+      // Validar longitud de contraseña
+      if (password.length < 6) {
+        setError("La contraseña debe tener al menos 6 caracteres")
+        setLoading(false)
+        return
+      }
+
       // Registrar al usuario en Supabase Auth
       const { error: authError, data } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password,
         options: {
           data: {
             full_name: fullName,
             university_student_id: studentId,
           },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
 
       if (authError) {
-        throw new Error(authError.message)
+        console.error("Error detallado:", authError)
+        if (authError.message.includes("Email")) {
+          setError("El correo electrónico no es válido o ya está registrado")
+        } else if (authError.message.includes("password")) {
+          setError("La contraseña debe tener al menos 6 caracteres")
+        } else if (authError.message.includes("rate limit")) {
+          setError("Demasiados intentos. Por favor, espera unos minutos antes de intentar de nuevo.")
+        } else {
+          setError(`Error al registrarse: ${authError.message}`)
+        }
+        setLoading(false)
+        return
       }
 
-      // Crear el documento del usuario en MongoDB
-      // Esto se hará a través de un webhook o función serverless
-      // que se activa cuando se crea un nuevo usuario en Supabase
-
-      // Redirigir a la página de verificación
-      router.push("/verification")
+      if (data?.user) {
+        console.log("Usuario registrado exitosamente:", data.user)
+        // Mostrar mensaje de confirmación
+        setError("Por favor, revisa tu correo electrónico para confirmar tu cuenta")
+        // Redirigir a la página de verificación después de 3 segundos
+        setTimeout(() => {
+          router.push("/verification")
+        }, 3000)
+      } else {
+        setError("No se pudo crear el usuario. Por favor, intenta de nuevo.")
+      }
     } catch (err: any) {
-      console.error("Error de registro:", err)
+      console.error("Error detallado de registro:", err)
       setError(err.message || "Error al registrarse. Por favor, inténtalo de nuevo.")
     } finally {
       setLoading(false)

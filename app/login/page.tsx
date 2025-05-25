@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -19,29 +18,59 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleLogin = async (e: React.FormEvent) => {
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        console.log("Verificando sesión existente...")
+        const supabase = getSupabaseClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        console.log("Estado de la sesión:", session ? "Activa" : "No hay sesión")
+        if (session) {
+          console.log("Redirigiendo a dashboard desde verificación de sesión...")
+          router.push("/dashboard")
+        }
+      } catch (err) {
+        console.error("Error al verificar sesión:", err)
+      }
+    }
+    checkSession()
+  }, [router])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError("")
     setLoading(true)
-    setError(null)
 
     try {
+      console.log("Iniciando proceso de login...")
       const supabase = getSupabaseClient()
 
-      const { error } = await supabase.auth.signInWithPassword({
+      // Intentar iniciar sesión
+      const { error: signInError, data } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) {
-        throw new Error(error.message)
+      if (signInError) {
+        console.error("Error de autenticación:", signInError)
+        setError(signInError.message)
+        setLoading(false)
+        return
       }
 
-      // Redirigir al dashboard después de iniciar sesión
-      router.push("/dashboard")
+      if (data?.user) {
+        console.log("Login exitoso, usuario:", data.user)
+        console.log("Redirigiendo a dashboard...")
+        
+        // Esperar un momento para asegurarnos de que la sesión se establezca
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Redirigir directamente usando window.location
+        window.location.href = "/dashboard"
+      }
     } catch (err: any) {
-      console.error("Error de inicio de sesión:", err)
-      setError(err.message || "Error al iniciar sesión. Por favor, inténtalo de nuevo.")
-    } finally {
+      console.error("Error en el proceso de login:", err)
+      setError(err.message || "Error al iniciar sesión")
       setLoading(false)
     }
   }
@@ -58,7 +87,7 @@ export default function LoginPage() {
           <CardTitle className="text-2xl font-bold text-center">Iniciar Sesión</CardTitle>
           <CardDescription className="text-center">Ingresa tus credenciales para acceder a tu cuenta</CardDescription>
         </CardHeader>
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Correo Electrónico</Label>

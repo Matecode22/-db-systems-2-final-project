@@ -4,32 +4,32 @@ import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
+  
+  try {
+    const supabase = createMiddlewareClient({ req, res })
+    const { data: { session } } = await supabase.auth.getSession()
+    const path = req.nextUrl.pathname
 
-  // Verificar si el usuario está autenticado
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    console.log("Middleware - Ruta:", path, "Sesión:", session ? "Activa" : "No hay sesión")
 
-  // Rutas que requieren autenticación
-  const protectedRoutes = ["/dashboard"]
+    // Si el usuario intenta acceder a /dashboard (o subrutas) sin sesión, redirige a /login
+    if (path.startsWith("/dashboard") && !session) {
+      console.log("Middleware - Redirigiendo a login")
+      return NextResponse.redirect(new URL("/login", req.url))
+    }
 
-  // Verificar si la ruta actual requiere autenticación
-  const isProtectedRoute = protectedRoutes.some((route) => req.nextUrl.pathname.startsWith(route))
+    // Si el usuario está autenticado y accede a /login o /register, redirige a /dashboard
+    if (session && (path === "/login" || path === "/register")) {
+      console.log("Middleware - Redirigiendo a dashboard")
+      return NextResponse.redirect(new URL("/dashboard", req.url))
+    }
 
-  // Si la ruta requiere autenticación y el usuario no está autenticado, redirigir a la página de inicio de sesión
-  if (isProtectedRoute && !session) {
-    const redirectUrl = new URL("/login", req.url)
-    redirectUrl.searchParams.set("redirect", req.nextUrl.pathname)
-    return NextResponse.redirect(redirectUrl)
+    // Permite el acceso a cualquier otra ruta
+    return res
+  } catch (error) {
+    console.error("Error en middleware:", error)
+    return NextResponse.redirect(new URL("/login", req.url))
   }
-
-  // Si el usuario está autenticado y está intentando acceder a la página de inicio de sesión o registro, redirigir al dashboard
-  if (session && (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/register")) {
-    return NextResponse.redirect(new URL("/dashboard", req.url))
-  }
-
-  return res
 }
 
 // Configurar las rutas que deben ser procesadas por el middleware
