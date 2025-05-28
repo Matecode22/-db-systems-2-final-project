@@ -3,42 +3,10 @@ import { supabase } from "@/lib/supabase"
 
 export async function GET() {
   try {
-    console.log("🔍 Fetching groups from Supabase...")
+    console.log("🔍 Fetching groups from Supabase with correct structure...")
 
-    // Primero, intentar obtener la estructura de la tabla groups
-    const { data: groupsStructure, error: structureError } = await supabase.from("groups").select("*").limit(1)
-
-    if (structureError) {
-      console.error("Error checking groups structure:", structureError)
-      return NextResponse.json(
-        {
-          error: "Error accessing groups table",
-          details: structureError.message,
-          suggestion: "Verifica que la tabla 'groups' existe en Supabase",
-        },
-        { status: 500 },
-      )
-    }
-
-    // Detectar las columnas disponibles
-    const availableColumns = groupsStructure && groupsStructure.length > 0 ? Object.keys(groupsStructure[0]) : []
-    console.log("📋 Available columns in groups table:", availableColumns)
-
-    // Mapear nombres de columnas comunes
-    const columnMapping = {
-      id: availableColumns.find((col) => col.toLowerCase().includes("id") && !col.includes("_")) || availableColumns[0],
-      subject_id: availableColumns.find((col) => col.toLowerCase().includes("subject")) || "subject_id",
-      employee_id: availableColumns.find((col) => col.toLowerCase().includes("employee")) || "employee_id",
-      campus_id: availableColumns.find((col) => col.toLowerCase().includes("campus")) || "campus_id",
-      group_number: availableColumns.find((col) => col.toLowerCase().includes("group")) || "group_number",
-      semester: availableColumns.find((col) => col.toLowerCase().includes("semester")) || "semester",
-      year: availableColumns.find((col) => col.toLowerCase().includes("year")) || "year",
-    }
-
-    console.log("🗺️ Column mapping:", columnMapping)
-
-    // Obtener todos los grupos usando las columnas detectadas
-    const { data: groups, error: groupsError } = await supabase.from("groups").select("*").order(columnMapping.id)
+    // Obtener todos los grupos usando la estructura real
+    const { data: groups, error: groupsError } = await supabase.from("groups").select("*").order("number")
 
     if (groupsError) {
       console.error("Error fetching groups:", groupsError)
@@ -46,7 +14,6 @@ export async function GET() {
         {
           error: "Error fetching groups",
           details: groupsError.message,
-          availableColumns,
         },
         { status: 500 },
       )
@@ -54,51 +21,61 @@ export async function GET() {
 
     console.log(`📊 Found ${groups?.length || 0} groups`)
 
-    // Obtener materias
+    // Obtener todas las materias usando la columna 'code'
     const { data: subjects, error: subjectsError } = await supabase.from("subjects").select("*")
 
     if (subjectsError) {
       console.warn("Error fetching subjects:", subjectsError.message)
     }
 
-    // Obtener empleados
+    console.log(`📚 Found ${subjects?.length || 0} subjects`)
+
+    // Obtener todos los empleados usando la columna 'id'
     const { data: employees, error: employeesError } = await supabase.from("employees").select("*")
 
     if (employeesError) {
       console.warn("Error fetching employees:", employeesError.message)
     }
 
-    // Obtener campus
+    console.log(`👥 Found ${employees?.length || 0} employees`)
+
+    // Obtener todos los campus
     const { data: campuses, error: campusesError } = await supabase.from("campuses").select("*")
 
     if (campusesError) {
       console.warn("Error fetching campuses:", campusesError.message)
     }
 
-    // Formatear los datos usando el mapeo de columnas
+    console.log(`🏢 Found ${campuses?.length || 0} campuses`)
+
+    // Formatear los datos usando la estructura real
     const formattedGroups =
       groups?.map((group) => {
-        const subject = subjects?.find((s) => s.id === group[columnMapping.subject_id])
-        const employee = employees?.find((e) => e.id === group[columnMapping.employee_id])
-        const campus = campuses?.find((c) => c.id === group[columnMapping.campus_id])
+        const subject = subjects?.find((s) => s.code === group.subject_code)
+        const employee = employees?.find((e) => e.id === group.professor_id)
+
+        // Crear un ID único combinando las claves primarias
+        const uniqueId = `${group.number}-${group.subject_code}-${group.semester}`
 
         return {
-          id: group[columnMapping.id],
-          subject_id: group[columnMapping.subject_id],
-          group_number: group[columnMapping.group_number] || "N/A",
-          semester: group[columnMapping.semester] || "N/A",
-          year: group[columnMapping.year] || new Date().getFullYear(),
-          employee_id: group[columnMapping.employee_id],
-          campus_id: group[columnMapping.campus_id],
+          // ID único para el frontend
+          id: uniqueId,
+          // Datos originales
+          number: group.number,
+          semester: group.semester,
+          subject_code: group.subject_code,
+          professor_id: group.professor_id,
+          // Datos enriquecidos
           subject_name: subject?.name || "Materia Desconocida",
-          subject_code: subject?.code || "N/A",
           professor_name: employee
             ? `${employee.first_name || ""} ${employee.last_name || ""}`.trim()
             : "Profesor Desconocido",
-          campus_name: campus?.name || "Campus Desconocido",
-          // Incluir datos originales para debug
+          // Para compatibilidad con el frontend existente
+          group_number: group.number.toString(),
+          year: Number.parseInt(group.semester.split("-")[0]) || new Date().getFullYear(),
+          // Datos adicionales
+          campus_name: "Campus Principal", // Por ahora, ya que no hay relación directa
           _original: group,
-          _columns: availableColumns,
         }
       }) || []
 
@@ -109,8 +86,8 @@ export async function GET() {
       groups: formattedGroups,
       metadata: {
         totalGroups: formattedGroups.length,
-        availableColumns,
-        columnMapping,
+        structure: "composite_key",
+        primaryKey: ["number", "subject_code", "semester"],
         tablesAccessed: {
           groups: !!groups,
           subjects: !!subjects,

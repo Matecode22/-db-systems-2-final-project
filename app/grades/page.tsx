@@ -9,11 +9,25 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Calculator, Edit, Save, X } from "lucide-react"
+import { Calculator, Edit, Save, X, AlertCircle, Database } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+
+interface AvailablePlan {
+  id: string
+  groupNumber: number
+  semester: string
+  subjectCode: string
+  subjectName: string
+  professorId: string
+  professorName: string
+  year: number
+  displayName: string
+  fullInfo: string
+}
 
 interface EvaluationPlan {
   _id: string
-  groupId: number
+  groupId: string
   subjectName: string
   professorName: string
   semester: string
@@ -43,31 +57,59 @@ interface StudentGrade {
 
 export default function Grades() {
   const { data: session } = useSession()
-  const [plans, setPlans] = useState<EvaluationPlan[]>([])
+  const [availablePlans, setAvailablePlans] = useState<AvailablePlan[]>([])
+  const [evaluationPlans, setEvaluationPlans] = useState<EvaluationPlan[]>([])
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("")
   const [selectedPlan, setSelectedPlan] = useState<EvaluationPlan | null>(null)
   const [studentGrades, setStudentGrades] = useState<StudentGrade | null>(null)
   const [editingActivity, setEditingActivity] = useState<string | null>(null)
   const [tempGrade, setTempGrade] = useState<number>(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
   useEffect(() => {
-    fetchPlans()
+    fetchAvailablePlans()
+    fetchEvaluationPlans()
   }, [])
 
   useEffect(() => {
-    if (selectedPlan) {
-      fetchStudentGrades(selectedPlan._id)
+    if (selectedPlanId) {
+      const plan = evaluationPlans.find((p) => p.groupId === selectedPlanId)
+      setSelectedPlan(plan || null)
+      if (plan) {
+        fetchStudentGrades(plan._id)
+      }
     }
-  }, [selectedPlan])
+  }, [selectedPlanId, evaluationPlans])
 
-  const fetchPlans = async () => {
+  const fetchAvailablePlans = async () => {
+    try {
+      const response = await fetch("/api/evaluation-plans/available")
+      if (response.ok) {
+        const data = await response.json()
+        setAvailablePlans(data)
+        console.log("Available plans loaded:", data.length)
+      } else {
+        const errorData = await response.json()
+        setError(`Error cargando materias: ${errorData.error}`)
+      }
+    } catch (error) {
+      console.error("Error fetching available plans:", error)
+      setError("Error de conexión al cargar materias")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchEvaluationPlans = async () => {
     try {
       const response = await fetch("/api/evaluation-plans")
       if (response.ok) {
         const data = await response.json()
-        setPlans(data)
+        setEvaluationPlans(data)
       }
     } catch (error) {
-      console.error("Error fetching plans:", error)
+      console.error("Error fetching evaluation plans:", error)
     }
   }
 
@@ -173,9 +215,29 @@ export default function Grades() {
     }))
   }
 
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex items-center justify-center min-h-64">
+          <div className="text-center">
+            <Database className="w-8 h-8 mx-auto mb-4 animate-spin" />
+            <p>Cargando materias disponibles...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Gestión de Notas</h1>
+
+      {error && (
+        <Alert className="mb-6 border-red-500 bg-red-50">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="text-red-700">{error}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Selector de Materia */}
@@ -186,22 +248,44 @@ export default function Grades() {
           </CardHeader>
           <CardContent>
             <Select
+              value={selectedPlanId}
               onValueChange={(value) => {
-                const plan = plans.find((p) => p._id === value)
-                setSelectedPlan(plan || null)
+                setSelectedPlanId(value)
               }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona una materia" />
               </SelectTrigger>
               <SelectContent>
-                {plans.map((plan) => (
-                  <SelectItem key={plan._id} value={plan._id}>
-                    {plan.subjectName} - {plan.semester} {plan.year}
+                {availablePlans.length > 0 ? (
+                  availablePlans.map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{plan.subjectName}</span>
+                        <span className="text-sm text-gray-500">
+                          Grupo {plan.groupNumber} - Prof. {plan.professorName}
+                        </span>
+                        <span className="text-xs text-gray-400">{plan.semester}</span>
+                      </div>
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-plans" disabled>
+                    No hay materias disponibles
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
+
+            {availablePlans.length > 0 && (
+              <div className="mt-3 text-sm text-green-600">✅ {availablePlans.length} materias disponibles</div>
+            )}
+
+            {availablePlans.length === 0 && !loading && (
+              <div className="mt-3 text-sm text-gray-500">
+                No se encontraron materias. Verifica que existan grupos en la base de datos.
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -314,6 +398,16 @@ export default function Grades() {
           </Card>
         )}
       </div>
+
+      {!selectedPlan && !loading && availablePlans.length > 0 && (
+        <Card className="mt-6">
+          <CardContent className="pt-6 text-center">
+            <Calculator className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+            <h3 className="text-lg font-semibold mb-2">Selecciona una materia</h3>
+            <p className="text-gray-600">Elige una materia del desplegable para gestionar tus notas</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
