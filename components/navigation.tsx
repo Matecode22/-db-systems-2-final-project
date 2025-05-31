@@ -8,14 +8,12 @@ import {
   Home,
   Calculator,
   FileText,
-  BarChart3,
   Settings,
   Database,
   LogOut,
   User,
   Bug,
   Target,
-  Info,
 } from "lucide-react"
 
 export function Navigation() {
@@ -27,8 +25,6 @@ export function Navigation() {
     { name: "Planes", href: "/evaluation-plans", icon: FileText },
     { name: "Notas", href: "/grades", icon: Calculator },
     { name: "Calculadora", href: "/calculator", icon: Target },
-    { name: "Informes", href: "/reports", icon: BarChart3 },
-    { name: "Proyecto", href: "/project-info", icon: Info },
   ]
 
   const debugNavigation = [

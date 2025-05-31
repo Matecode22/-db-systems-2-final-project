@@ -1,23 +1,35 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { connectToMongoDB } from "@/lib/mongodb"
+import { connectToMongoDB } from "@/lib/mongodb-simple"
+import { getLocalDatabase } from "@/lib/mongodb-fallback"
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const userId = session.user.email // Usar email como ID del usuario
     const body = await request.json()
     const { evaluationPlanId, activityId, grade, semester, year } = body
 
-    const db = await connectToMongoDB()
+    // Usar MongoDB o fallback local
+    let db
+    try {
+      db = await connectToMongoDB()
+      if (!db) {
+        throw new Error("MongoDB not available")
+      }
+    } catch (error) {
+      console.log("Using local database for grades")
+      db = getLocalDatabase()
+    }
 
     // Buscar si ya existe un registro de notas para este estudiante y plan
     const existingGrades = await db.collection("student_grades").findOne({
-      studentId: session.user.id,
+      studentId: userId,
       evaluationPlanId,
     })
 
@@ -29,7 +41,7 @@ export async function POST(request: NextRequest) {
         // Actualizar nota existente
         await db.collection("student_grades").updateOne(
           {
-            studentId: session.user.id,
+            studentId: userId,
             evaluationPlanId,
             "grades.activityId": activityId,
           },
@@ -44,7 +56,7 @@ export async function POST(request: NextRequest) {
         // Agregar nueva nota
         await db.collection("student_grades").updateOne(
           {
-            studentId: session.user.id,
+            studentId: userId,
             evaluationPlanId,
           },
           {
@@ -55,13 +67,13 @@ export async function POST(request: NextRequest) {
                 date: new Date(),
               },
             },
-          },
+          } as any,
         )
       }
     } else {
       // Crear nuevo registro de notas
       await db.collection("student_grades").insertOne({
-        studentId: session.user.id,
+        studentId: userId,
         evaluationPlanId,
         grades: [
           {

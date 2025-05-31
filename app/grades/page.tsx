@@ -174,7 +174,7 @@ export default function Grades() {
       }
     })
 
-    return totalWeight > 0 ? (totalWeightedGrade / totalWeight) * 100 : 0
+    return totalWeight > 0 ? (totalWeightedGrade / totalWeight) * 5 : 0
   }
 
   const calculateProjectedGrade = (): number => {
@@ -189,19 +189,27 @@ export default function Grades() {
       }
     })
 
-    return totalWeightedGrade
+    return (totalWeightedGrade / 100) * 5
   }
 
   const getRequiredGradeForTarget = (targetGrade: number): { activityId: string; requiredGrade: number }[] => {
     if (!selectedPlan) return []
 
-    const currentWeightedGrade = calculateProjectedGrade()
+    const targetPercentage = (targetGrade / 5) * 100
+    const currentWeightedGrade = selectedPlan.activities.reduce((sum, activity) => {
+      const grade = getActivityGrade(activity.id)
+      if (grade > 0) {
+        return sum + (grade / activity.maxGrade) * activity.percentage
+      }
+      return sum
+    }, 0)
+
     const remainingActivities = selectedPlan.activities.filter((activity) => getActivityGrade(activity.id) === 0)
     const remainingWeight = remainingActivities.reduce((sum, activity) => sum + activity.percentage, 0)
 
     if (remainingWeight === 0) return []
 
-    const requiredWeightedGrade = targetGrade - currentWeightedGrade
+    const requiredWeightedGrade = targetPercentage - currentWeightedGrade
 
     return remainingActivities.map((activity) => ({
       activityId: activity.id,
@@ -209,7 +217,7 @@ export default function Grades() {
         activity.maxGrade,
         Math.max(
           0,
-          (((requiredWeightedGrade * activity.percentage) / remainingWeight) * activity.maxGrade) / activity.percentage,
+          (requiredWeightedGrade * activity.percentage / remainingWeight) * activity.maxGrade / activity.percentage,
         ),
       ),
     }))
@@ -302,26 +310,45 @@ export default function Grades() {
               <div className="space-y-4">
                 <div>
                   <Label>Nota Actual</Label>
-                  <div className="text-2xl font-bold text-blue-600">{calculateCurrentGrade().toFixed(1)}%</div>
-                  <Progress value={calculateCurrentGrade()} className="mt-2" />
+                  <div className="flex items-center gap-3">
+                    <div className="text-2xl font-bold text-blue-600">{calculateCurrentGrade().toFixed(1)}</div>
+                    {calculateCurrentGrade() >= 3.0 ? (
+                      <Badge className="bg-green-600">Aprobando</Badge>
+                    ) : calculateCurrentGrade() > 0 ? (
+                      <Badge variant="destructive">Necesita mejora</Badge>
+                    ) : (
+                      <Badge variant="outline">Sin notas</Badge>
+                    )}
+                  </div>
+                  <Progress value={(calculateCurrentGrade() / 5) * 100} className="mt-2" />
+                  <div className="text-xs text-gray-500 mt-1">Escala 0.0 - 5.0</div>
                 </div>
 
                 <div>
                   <Label>Nota Proyectada</Label>
-                  <div className="text-xl font-semibold">{calculateProjectedGrade().toFixed(1)}%</div>
+                  <div className="text-xl font-semibold">{calculateProjectedGrade().toFixed(1)}</div>
+                  <div className="text-xs text-gray-500">Basada en notas actuales</div>
                 </div>
 
                 <div className="border-t pt-4">
-                  <Label>Para obtener 70%:</Label>
+                  <Label>Para obtener 3.0 (mínimo para aprobar):</Label>
                   <div className="text-sm space-y-1">
-                    {getRequiredGradeForTarget(70).map((req) => {
+                    {getRequiredGradeForTarget(3).map((req) => {
                       const activity = selectedPlan.activities.find((a) => a.id === req.activityId)
                       return (
-                        <div key={req.activityId}>
+                        <div key={req.activityId} className={`p-2 rounded ${req.requiredGrade <= activity?.maxGrade! ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                           {activity?.name}: {req.requiredGrade.toFixed(1)}/{activity?.maxGrade}
+                          {req.requiredGrade > activity?.maxGrade! && (
+                            <span className="text-xs block">⚠️ No es posible con la nota máxima</span>
+                          )}
                         </div>
                       )
                     })}
+                    {getRequiredGradeForTarget(3).length === 0 && (
+                      <div className="text-green-600 font-medium">
+                        🎉 ¡Ya tienes la nota mínima para aprobar!
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
