@@ -15,8 +15,10 @@ Una aplicación web para gestionar notas universitarias, planes de evaluación y
 
 \`\`\`bash
 # Instalar dependencias
-npm install
+npm install --legacy-peer-deps
 \`\`\`
+
+> **⚠️ Nota Importante:** Este proyecto usa React 19 y algunas dependencias pueden tener conflictos de versiones. Si encuentras errores de dependencias peer, usa `--legacy-peer-deps` para resolverlos.
 
 ### 2. Configurar variables de entorno
 
@@ -48,6 +50,37 @@ La aplicación estará disponible en [http://localhost:3000](http://localhost:30
 
 Visita [http://localhost:3000/admin](http://localhost:3000/admin) y haz clic en "Poblar Base de Datos" para cargar datos de ejemplo.
 
+## 🔧 Solución de Problemas Comunes
+
+### Error de Dependencias (ERESOLVE)
+
+Si encuentras errores como:
+```
+npm error ERESOLVE could not resolve
+```
+
+**Solución:**
+```bash
+# Para instalar nuevas dependencias
+npm install nombre-paquete --legacy-peer-deps
+
+# Para reinstalar todas las dependencias
+rm -rf node_modules package-lock.json
+npm install --legacy-peer-deps
+```
+
+**¿Por qué ocurre esto?**
+- El proyecto usa React 19 (muy reciente)
+- Algunas librerías como `vaul`, `react-day-picker` aún no soportan oficialmente React 19
+- `--legacy-peer-deps` usa el algoritmo de resolución de dependencias de npm v6 (más permisivo)
+
+### Problemas de Conexión a Bases de Datos
+
+Si MongoDB o Supabase no se conectan:
+1. Verifica las variables de entorno en `.env.local`
+2. Asegúrate de que las URLs y claves sean correctas
+3. El sistema tiene fallbacks automáticos para desarrollo
+
 ## 👤 Usuarios de Prueba
 
 Después de poblar la base de datos:
@@ -71,7 +104,7 @@ trackademic/
 
 ## 🛠️ Tecnologías
 
-- **Frontend:** Next.js 14, React, TypeScript, Tailwind CSS
+- **Frontend:** Next.js 14, React 19, TypeScript, Tailwind CSS
 - **UI:** shadcn/ui, Radix UI
 - **Autenticación:** NextAuth.js
 - **Bases de Datos:** Supabase (PostgreSQL) + MongoDB
@@ -94,5 +127,30 @@ trackademic/
 - `npm run start` - Ejecutar en producción
 - `npm run seed` - Poblar base de datos con datos de ejemplo
 \`\`\`
+
+## 📝 Notas para Desarrolladores
+
+### Manejo de Dependencias
+- Siempre usar `--legacy-peer-deps` para instalar nuevos paquetes
+- Las versiones están fijadas para evitar conflictos
+- React 19 requiere Node.js 18+
+
+### Base de Datos Híbrida
+- **PostgreSQL (Supabase):** Datos estructurados de la universidad
+- **MongoDB:** Datos flexibles (planes, notas, comentarios)
+- Fallbacks automáticos implementados para desarrollo
+
+### Desarrollo Local
+```bash
+# Instalar dependencias (primera vez)
+npm install --legacy-peer-deps
+
+# Agregar nueva dependencia
+npm install nueva-dependencia --legacy-peer-deps
+
+# Limpiar y reinstalar (si hay problemas)
+rm -rf node_modules package-lock.json
+npm install --legacy-peer-deps
+```
 
 Finalmente, vamos a crear un script de inicio rápido:

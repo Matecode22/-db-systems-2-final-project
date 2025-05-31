@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, MessageCircle, Database, AlertCircle, Bug } from "lucide-react"
+import { Plus, Trash2, MessageCircle, Database, AlertCircle, Bug, Edit, Save, X } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Dialog,
@@ -18,6 +18,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { BookOpen } from "lucide-react"
 
 interface EvaluationPlan {
@@ -88,6 +99,11 @@ export default function EvaluationPlans() {
   const [selectedPlan, setSelectedPlan] = useState<EvaluationPlan | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  
+  // Estados para edición
+  const [editingPlan, setEditingPlan] = useState<string | null>(null)
+  const [editingActivities, setEditingActivities] = useState<Activity[]>([])
+  const [editingActivity, setEditingActivity] = useState<string | null>(null)
 
   useEffect(() => {
     fetchPlans()
@@ -211,6 +227,102 @@ export default function EvaluationPlans() {
     } catch (error) {
       console.error("Error adding comment:", error)
     }
+  }
+
+  const updatePlan = async (planId: string, updatedActivities: Activity[]) => {
+    try {
+      const response = await fetch(`/api/evaluation-plans/${planId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          activities: updatedActivities,
+        }),
+      })
+
+      if (response.ok) {
+        await fetchPlans()
+        setEditingPlan(null)
+        setEditingActivities([])
+        setError("")
+      } else {
+        const errorData = await response.json()
+        setError(`Error actualizando plan: ${errorData.error}`)
+      }
+    } catch (error) {
+      console.error("Error updating plan:", error)
+      setError("Error de conexión al actualizar plan")
+    }
+  }
+
+  const deletePlan = async (planId: string) => {
+    try {
+      const response = await fetch(`/api/evaluation-plans/${planId}`, {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        await fetchPlans()
+        setError("")
+      } else {
+        const errorData = await response.json()
+        setError(`Error eliminando plan: ${errorData.error}`)
+      }
+    } catch (error) {
+      console.error("Error deleting plan:", error)
+      setError("Error de conexión al eliminar plan")
+    }
+  }
+
+  const startEditingPlan = (plan: EvaluationPlan) => {
+    setEditingPlan(plan._id)
+    setEditingActivities([...plan.activities])
+  }
+
+  const cancelEditingPlan = () => {
+    setEditingPlan(null)
+    setEditingActivities([])
+    setEditingActivity(null)
+  }
+
+  const saveEditingPlan = () => {
+    if (editingPlan && editingActivities.length > 0) {
+      const totalPercentage = editingActivities.reduce((sum, activity) => sum + activity.percentage, 0)
+      if (totalPercentage !== 100) {
+        setError("La suma de porcentajes debe ser exactamente 100%")
+        return
+      }
+      updatePlan(editingPlan, editingActivities)
+    }
+  }
+
+  const updateEditingActivity = (activityId: string, field: string, value: any) => {
+    setEditingActivities(prev => 
+      prev.map(activity => 
+        activity.id === activityId 
+          ? { ...activity, [field]: value }
+          : activity
+      )
+    )
+  }
+
+  const removeEditingActivity = (activityId: string) => {
+    setEditingActivities(prev => prev.filter(activity => activity.id !== activityId))
+  }
+
+  const addEditingActivity = () => {
+    const newActivity: Activity = {
+      id: Date.now().toString(),
+      name: "Nueva actividad",
+      percentage: 0,
+      maxGrade: 5,
+    }
+    setEditingActivities(prev => [...prev, newActivity])
+  }
+
+  const getEditingTotalPercentage = () => {
+    return editingActivities.reduce((total, activity) => total + activity.percentage, 0)
   }
 
   if (loading) {
@@ -384,59 +496,155 @@ export default function EvaluationPlans() {
         {plans.map((plan) => (
           <Card key={plan._id}>
             <CardHeader>
-              <CardTitle>{plan.subjectName}</CardTitle>
-              <CardDescription>
-                Profesor: {plan.professorName} | {plan.semester} {plan.year}
-              </CardDescription>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle>{plan.subjectName}</CardTitle>
+                  <CardDescription>
+                    Profesor: {plan.professorName} | {plan.semester} {plan.year}
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  {editingPlan === plan._id ? (
+                    <>
+                      <Button size="sm" onClick={saveEditingPlan} disabled={getEditingTotalPercentage() !== 100}>
+                        <Save className="w-3 h-3" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={cancelEditingPlan}>
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => startEditingPlan(plan)}>
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="destructive">
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>¿Eliminar plan de evaluación?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta acción no se puede deshacer. Se eliminará permanentemente el plan de evaluación de {plan.subjectName}.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deletePlan(plan._id)}>
+                              Eliminar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </>
+                  )}
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-2 mb-4">
-                {plan.activities.map((activity) => (
-                  <div key={activity.id} className="flex justify-between items-center p-2 border rounded">
-                    <span>{activity.name}</span>
+                {editingPlan === plan._id ? (
+                  // Modo edición
+                  <>
+                    {editingActivities.map((activity) => (
+                      <div key={activity.id} className="flex items-center gap-2 p-2 border rounded">
+                        <Input
+                          value={activity.name}
+                          onChange={(e) => updateEditingActivity(activity.id, "name", e.target.value)}
+                          className="flex-1"
+                        />
+                        <Input
+                          type="number"
+                          value={activity.percentage}
+                          onChange={(e) => updateEditingActivity(activity.id, "percentage", Number(e.target.value))}
+                          className="w-20"
+                          min="0"
+                          max="100"
+                        />
+                        <span className="text-sm text-gray-500">%</span>
+                        <Input
+                          type="number"
+                          value={activity.maxGrade}
+                          onChange={(e) => updateEditingActivity(activity.id, "maxGrade", Number(e.target.value))}
+                          className="w-20"
+                          min="1"
+                          max="10"
+                        />
+                        <Button size="sm" variant="destructive" onClick={() => removeEditingActivity(activity.id)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
                     <div className="flex gap-2">
-                      <Badge variant="secondary">{activity.percentage}%</Badge>
-                      <Badge variant="outline">Max: {activity.maxGrade}</Badge>
+                      <Button size="sm" variant="outline" onClick={addEditingActivity}>
+                        <Plus className="w-3 h-3 mr-1" />
+                        Agregar Actividad
+                      </Button>
                     </div>
+                    <div className="mt-3 p-2 bg-gray-50 rounded">
+                      <span className="font-semibold">
+                        Total: {getEditingTotalPercentage()}%
+                        {getEditingTotalPercentage() !== 100 && (
+                          <span className="text-red-500 ml-2">(Debe ser 100%)</span>
+                        )}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  // Modo visualización
+                  plan.activities.map((activity) => (
+                    <div key={activity.id} className="flex justify-between items-center p-2 border rounded">
+                      <span>{activity.name}</span>
+                      <div className="flex gap-2">
+                        <Badge variant="secondary">{activity.percentage}%</Badge>
+                        <Badge variant="outline">Max: {activity.maxGrade}</Badge>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Sección de comentarios - solo mostrar si no está en modo edición */}
+              {editingPlan !== plan._id && (
+                <div className="border-t pt-4">
+                  <h4 className="font-semibold mb-2 flex items-center">
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    Comentarios ({plan.comments.length})
+                  </h4>
+
+                  <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
+                    {plan.comments.map((comment) => (
+                      <div key={comment.id} className="text-sm p-2 bg-gray-50 rounded">
+                        <div className="font-medium">{comment.userName}</div>
+                        <div>{comment.text}</div>
+                        <div className="text-xs text-gray-500">{new Date(comment.date).toLocaleDateString()}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              <div className="border-t pt-4">
-                <h4 className="font-semibold mb-2 flex items-center">
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                  Comentarios ({plan.comments.length})
-                </h4>
-
-                <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
-                  {plan.comments.map((comment) => (
-                    <div key={comment.id} className="text-sm p-2 bg-gray-50 rounded">
-                      <div className="font-medium">{comment.userName}</div>
-                      <div>{comment.text}</div>
-                      <div className="text-xs text-gray-500">{new Date(comment.date).toLocaleDateString()}</div>
-                    </div>
-                  ))}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Agregar comentario..."
+                      value={selectedPlan?._id === plan._id ? newComment : ""}
+                      onChange={(e) => {
+                        setNewComment(e.target.value)
+                        setSelectedPlan(plan)
+                      }}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          addComment(plan._id)
+                        }
+                      }}
+                    />
+                    <Button size="sm" onClick={() => addComment(plan._id)} disabled={!newComment.trim()}>
+                      Enviar
+                    </Button>
+                  </div>
                 </div>
-
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Agregar comentario..."
-                    value={selectedPlan?._id === plan._id ? newComment : ""}
-                    onChange={(e) => {
-                      setNewComment(e.target.value)
-                      setSelectedPlan(plan)
-                    }}
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter") {
-                        addComment(plan._id)
-                      }
-                    }}
-                  />
-                  <Button size="sm" onClick={() => addComment(plan._id)} disabled={!newComment.trim()}>
-                    Enviar
-                  </Button>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         ))}
