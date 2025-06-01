@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { FileText, Calculator, TrendingUp, Database, Target } from "lucide-react"
+import { FileText, Calculator, TrendingUp, Database, Target, BarChart3 } from "lucide-react"
 
 export default function Dashboard() {
   const { data: session } = useSession()
@@ -53,7 +53,7 @@ export default function Dashboard() {
       </div>
 
       {/* Funcionalidades Principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 max-w-4xl mx-auto">
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -120,20 +120,20 @@ export default function Dashboard() {
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Database className="w-5 h-5 mr-2 text-red-600" />
-              Arquitectura Híbrida
+              <BarChart3 className="w-5 h-5 mr-2 text-orange-600" />
+              Informes Académicos
             </CardTitle>
-            <CardDescription>PostgreSQL + MongoDB</CardDescription>
+            <CardDescription>Consolidado y análisis de rendimiento académico</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="text-sm text-gray-600 space-y-2 mb-4">
-              <li>• Supabase: Datos universitarios</li>
-              <li>• MongoDB: Planes y notas</li>
-              <li>• Sincronización automática</li>
-              <li>• Escalabilidad garantizada</li>
+              <li>• Consolidado de notas por semestre</li>
+              <li>• Tendencias y evolución académica</li>
+              <li>• Comparación entre materias</li>
+              <li>• Recomendaciones personalizadas</li>
             </ul>
-            <Link href="/database-overview">
-              <Button className="w-full">Ver Arquitectura</Button>
+            <Link href="/reports">
+              <Button className="w-full">Ver Informes</Button>
             </Link>
           </CardContent>
         </Card>

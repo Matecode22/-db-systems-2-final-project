@@ -14,7 +14,14 @@ export const metadata: Metadata = {
   keywords: ["notas", "universidad", "académico", "evaluación", "estudiantes"],
   authors: [{ name: "Trackademic Team" }],
   viewport: "width=device-width, initial-scale=1",
-    generator: 'v0.dev'
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "32x32", type: "image/x-icon" }
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/favicon.svg",
+  }
 }
 
 export default function RootLayout({

@@ -1,0 +1,11 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background azul -->
+  <rect width="32" height="32" rx="6" fill="#2563eb"/>
+  
+  <!-- Letra T estilizada -->
+  <rect x="10" y="8" width="12" height="3" fill="white"/>
+  <rect x="14.5" y="8" width="3" height="16" fill="white"/>
+  
+  <!-- Pequeño acento académico (punto) -->
+  <circle cx="25" cy="9" r="1.5" fill="#fbbf24"/>
+</svg> 

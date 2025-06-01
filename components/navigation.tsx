@@ -14,6 +14,7 @@ import {
   User,
   Bug,
   Target,
+  BarChart3,
 } from "lucide-react"
 
 export function Navigation() {
@@ -25,6 +26,7 @@ export function Navigation() {
     { name: "Planes", href: "/evaluation-plans", icon: FileText },
     { name: "Notas", href: "/grades", icon: Calculator },
     { name: "Calculadora", href: "/calculator", icon: Target },
+    { name: "Informes", href: "/reports", icon: BarChart3 },
   ]
 
   const debugNavigation = [

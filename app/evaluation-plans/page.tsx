@@ -498,10 +498,10 @@ export default function EvaluationPlans() {
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
-                  <CardTitle>{plan.subjectName}</CardTitle>
-                  <CardDescription>
-                    Profesor: {plan.professorName} | {plan.semester} {plan.year}
-                  </CardDescription>
+              <CardTitle>{plan.subjectName}</CardTitle>
+              <CardDescription>
+                Profesor: {plan.professorName} | {plan.semester} {plan.year}
+              </CardDescription>
                 </div>
                 <div className="flex gap-2">
                   {editingPlan === plan._id ? (
@@ -596,54 +596,54 @@ export default function EvaluationPlans() {
                 ) : (
                   // Modo visualización
                   plan.activities.map((activity) => (
-                    <div key={activity.id} className="flex justify-between items-center p-2 border rounded">
-                      <span>{activity.name}</span>
-                      <div className="flex gap-2">
-                        <Badge variant="secondary">{activity.percentage}%</Badge>
-                        <Badge variant="outline">Max: {activity.maxGrade}</Badge>
-                      </div>
+                  <div key={activity.id} className="flex justify-between items-center p-2 border rounded">
+                    <span>{activity.name}</span>
+                    <div className="flex gap-2">
+                      <Badge variant="secondary">{activity.percentage}%</Badge>
+                      <Badge variant="outline">Max: {activity.maxGrade}</Badge>
                     </div>
+                  </div>
                   ))
                 )}
               </div>
 
               {/* Sección de comentarios - solo mostrar si no está en modo edición */}
               {editingPlan !== plan._id && (
-                <div className="border-t pt-4">
-                  <h4 className="font-semibold mb-2 flex items-center">
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    Comentarios ({plan.comments.length})
-                  </h4>
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-2 flex items-center">
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  Comentarios ({plan.comments.length})
+                </h4>
 
-                  <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
-                    {plan.comments.map((comment) => (
-                      <div key={comment.id} className="text-sm p-2 bg-gray-50 rounded">
-                        <div className="font-medium">{comment.userName}</div>
-                        <div>{comment.text}</div>
-                        <div className="text-xs text-gray-500">{new Date(comment.date).toLocaleDateString()}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Agregar comentario..."
-                      value={selectedPlan?._id === plan._id ? newComment : ""}
-                      onChange={(e) => {
-                        setNewComment(e.target.value)
-                        setSelectedPlan(plan)
-                      }}
-                      onKeyPress={(e) => {
-                        if (e.key === "Enter") {
-                          addComment(plan._id)
-                        }
-                      }}
-                    />
-                    <Button size="sm" onClick={() => addComment(plan._id)} disabled={!newComment.trim()}>
-                      Enviar
-                    </Button>
-                  </div>
+                <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
+                  {plan.comments.map((comment) => (
+                    <div key={comment.id} className="text-sm p-2 bg-gray-50 rounded">
+                      <div className="font-medium">{comment.userName}</div>
+                      <div>{comment.text}</div>
+                      <div className="text-xs text-gray-500">{new Date(comment.date).toLocaleDateString()}</div>
+                    </div>
+                  ))}
                 </div>
+
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Agregar comentario..."
+                    value={selectedPlan?._id === plan._id ? newComment : ""}
+                    onChange={(e) => {
+                      setNewComment(e.target.value)
+                      setSelectedPlan(plan)
+                    }}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") {
+                        addComment(plan._id)
+                      }
+                    }}
+                  />
+                  <Button size="sm" onClick={() => addComment(plan._id)} disabled={!newComment.trim()}>
+                    Enviar
+                  </Button>
+                </div>
+              </div>
               )}
             </CardContent>
           </Card>

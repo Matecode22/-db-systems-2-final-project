@@ -20,8 +20,10 @@ import {
   Brain,
   CheckCircle,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  Calculator
 } from "lucide-react"
+import Link from "next/link"
 
 interface SubjectReport {
   subjectName: string
@@ -74,6 +76,7 @@ export default function Reports() {
   const [semesterStats, setSemesterStats] = useState<SemesterStats[]>([])
   const [selectedSemester, setSelectedSemester] = useState<string>("")
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (session?.user) {
@@ -83,17 +86,40 @@ export default function Reports() {
 
   const fetchReports = async () => {
     try {
+      console.log("🔍 Frontend: Llamando a /api/reports...")
       const response = await fetch("/api/reports")
+      console.log("📡 Response status:", response.status, response.statusText)
+      
       if (response.ok) {
         const data = await response.json()
-        setSubjectReports(data.subjectReports)
-        setSemesterStats(data.semesterStats)
-        if (data.semesterStats.length > 0) {
-          setSelectedSemester(`${data.semesterStats[0].semester}-${data.semesterStats[0].year}`)
+        console.log("📊 Frontend: Datos recibidos:", data)
+        console.log("📊 Frontend: Cantidad de planes:", data.subjectReports?.length || 0)
+        console.log("📊 Frontend: Cantidad de semestres:", data.semesterStats?.length || 0)
+        
+        // Log detailed data
+        if (data.semesterStats) {
+          console.log("📊 Frontend: Semestres detallados:", data.semesterStats)
         }
+        if (data.subjectReports) {
+          console.log("📊 Frontend: Materias detalladas:", data.subjectReports)
+        }
+        
+        setSubjectReports(data.subjectReports || [])
+        setSemesterStats(data.semesterStats || [])
+        
+        if (data.semesterStats && data.semesterStats.length > 0) {
+          const firstSemester = data.semesterStats[0].semester // Ya viene como "2023-2"
+          console.log("🎯 Setting selected semester to:", firstSemester)
+          setSelectedSemester(firstSemester)
+        }
+      } else {
+        const errorData = await response.json()
+        console.error("❌ Error response:", errorData)
+        setError(`Error cargando informes: ${errorData.error}`)
       }
     } catch (error) {
-      console.error("Error fetching reports:", error)
+      console.error("❌ Frontend error:", error)
+      setError("Error de conexión al cargar informes")
     } finally {
       setLoading(false)
     }
@@ -107,29 +133,59 @@ export default function Reports() {
   }
 
   const getSelectedSemesterData = () => {
-    if (!selectedSemester) return null
-    const [semester, year] = selectedSemester.split("-")
-    const data = semesterStats.find((s) => s.semester === semester && s.year.toString() === year)
+    console.log("🔍 getSelectedSemesterData - selectedSemester:", selectedSemester)
+    console.log("🔍 getSelectedSemesterData - semesterStats:", semesterStats)
+    
+    if (!selectedSemester) {
+      console.log("❌ No selectedSemester")
+      return null
+    }
+    
+    console.log("🔍 Looking for semester:", selectedSemester)
+    
+    // Log each semester stat for comparison
+    semesterStats.forEach((stat, index) => {
+      console.log(`📊 Semester ${index}:`, {
+        semester: stat.semester,
+        year: stat.year,
+        matches: stat.semester === selectedSemester
+      })
+    })
+    
+    const data = semesterStats.find((s) => s.semester === selectedSemester)
+    console.log("🔍 Found semester data:", data)
+    
     if (data) {
-      return {
+      const processedData = {
         ...data,
         averageGrade: convertToDecimalScale(data.averageGrade),
         highestGrade: convertToDecimalScale(data.highestGrade),
         lowestGrade: convertToDecimalScale(data.lowestGrade)
       }
+      console.log("✅ Processed semester data:", processedData)
+      return processedData
     }
+    
+    console.log("❌ No matching semester data found")
     return null
   }
 
   const getSubjectsForSemester = () => {
+    console.log("🔍 getSubjectsForSemester - selectedSemester:", selectedSemester)
+    console.log("🔍 getSubjectsForSemester - subjectReports:", subjectReports)
+    
     if (!selectedSemester) return []
-    const [semester, year] = selectedSemester.split("-")
-    return subjectReports.filter((s) => s.semester === semester && s.year.toString() === year)
-      .map(subject => ({
-        ...subject,
-        currentGrade: convertToDecimalScale(subject.currentGrade),
-        projectedGrade: convertToDecimalScale(subject.projectedGrade)
-      }))
+    
+    console.log("🔍 Filtering subjects by semester:", selectedSemester)
+    
+    const filtered = subjectReports.filter((s) => s.semester === selectedSemester)
+    console.log("🔍 Filtered subjects:", filtered)
+    
+    return filtered.map(subject => ({
+      ...subject,
+      currentGrade: convertToDecimalScale(subject.currentGrade),
+      projectedGrade: convertToDecimalScale(subject.projectedGrade)
+    }))
   }
 
   const getTrendData = (): TrendData[] => {
@@ -266,14 +322,13 @@ export default function Reports() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center min-h-64">
-          <div className="text-center">
-            <BarChart3 className="w-8 h-8 mx-auto mb-4 animate-pulse" />
-            <p>Generando informes académicos...</p>
-          </div>
-        </div>
-      </div>
+      <Card>
+        <CardContent className="pt-6 text-center">
+          <BarChart3 className="w-12 h-12 mx-auto mb-4 animate-pulse" />
+          <h3 className="text-lg font-semibold mb-2">Cargando datos...</h3>
+          <p className="text-gray-600">Generando informes académicos...</p>
+        </CardContent>
+      </Card>
     )
   }
 
@@ -283,6 +338,20 @@ export default function Reports() {
   const subjectComparison = getSubjectComparison()
   const recommendations = generateRecommendations()
 
+  console.log("🔍 Debug Info:", {
+    selectedSemester,
+    selectedSemesterData,
+    semesterSubjects,
+    semesterStatsLength: semesterStats.length,
+    subjectReportsLength: subjectReports.length
+  })
+
+  // Agregar función para manejar cambio de semestre
+  const handleSemesterChange = (value: string) => {
+    console.log("🔄 Cambiando semestre a:", value)
+    setSelectedSemester(value)
+  }
+
   return (
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
@@ -290,315 +359,353 @@ export default function Reports() {
           <h1 className="text-3xl font-bold">Informes Académicos</h1>
           <p className="text-gray-600">Análisis completo de tu rendimiento académico</p>
         </div>
-        <Select value={selectedSemester} onValueChange={setSelectedSemester}>
+        <Select value={selectedSemester} onValueChange={handleSemesterChange}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Seleccionar semestre" />
           </SelectTrigger>
           <SelectContent>
             {semesterStats.map((stat) => (
-              <SelectItem key={`${stat.semester}-${stat.year}`} value={`${stat.semester}-${stat.year}`}>
-                {stat.semester} {stat.year}
+              <SelectItem key={stat.semester} value={stat.semester}>
+                {stat.semester}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      <Tabs defaultValue="consolidado" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="consolidado">Consolidado</TabsTrigger>
-          <TabsTrigger value="tendencias">Tendencias</TabsTrigger>
-          <TabsTrigger value="comparacion">Comparación</TabsTrigger>
-          <TabsTrigger value="recomendaciones">Recomendaciones</TabsTrigger>
-        </TabsList>
-
-        {/* Consolidado por Semestre */}
-        <TabsContent value="consolidado" className="space-y-6">
-          {selectedSemesterData && (
-            <>
-              {/* Resumen del Semestre */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Promedio General</CardTitle>
-                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className={`text-2xl font-bold ${getGradeColor(selectedSemesterData.averageGrade)}`}>
-                      {selectedSemesterData.averageGrade.toFixed(1)}
-                    </div>
-                    <Progress value={(selectedSemesterData.averageGrade / 5) * 100} className="mt-2" />
-                    <div className="text-xs text-gray-500 mt-1">Escala 0.0 - 5.0</div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Materias</CardTitle>
-                    <BookOpen className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{selectedSemesterData.totalSubjects}</div>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedSemesterData.completedSubjects} con todas las actividades
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Nota Más Alta</CardTitle>
-                    <Award className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600">
-                      {selectedSemesterData.highestGrade.toFixed(1)}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Nota Más Baja</CardTitle>
-                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-red-600">
-                      {selectedSemesterData.lowestGrade.toFixed(1)}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Detalle por Materia */}
-              <div className="space-y-6">
-                <h2 className="text-2xl font-semibold flex items-center">
-                  <Calendar className="w-5 h-5 mr-2" />
-                  {selectedSemester} - Detalle por Materia
-                </h2>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {semesterSubjects.map((subject, index) => (
-                    <Card key={index}>
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {getStatusIcon(subject)}
-                            {subject.subjectName}
-                          </div>
-                          <Badge variant={getGradeBadgeVariant(subject.currentGrade)}>
-                            {subject.currentGrade.toFixed(1)}
-                          </Badge>
-                        </CardTitle>
-                        <CardDescription>
-                          Prof. {subject.professorName} | {subject.completedActivities}/{subject.totalActivities} actividades
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span>Nota actual</span>
-                              <span>{subject.currentGrade.toFixed(1)}/5.0</span>
-                            </div>
-                            <Progress value={(subject.currentGrade / 5) * 100} className="h-2" />
-                          </div>
-
-                          <div>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span>Progreso</span>
-                              <span>{Math.round((subject.completedActivities / subject.totalActivities) * 100)}%</span>
-                            </div>
-                            <Progress value={(subject.completedActivities / subject.totalActivities) * 100} className="h-2" />
-                          </div>
-
-                          {subject.currentGrade < 3.0 && subject.currentGrade > 0 && (
-                            <div className="flex items-center gap-2 text-sm text-red-600">
-                              <AlertTriangle className="w-4 h-4" />
-                              <span>Necesita mejorar para aprobar</span>
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </TabsContent>
-
-        {/* Análisis de Tendencias */}
-        <TabsContent value="tendencias" className="space-y-6">
-          <div className="space-y-6">
-            <h2 className="text-2xl font-semibold flex items-center">
-              <TrendingUp className="w-5 h-5 mr-2" />
-              Análisis de Tendencias
-            </h2>
-
-            {trendData.length >= 2 ? (
-              <div className="grid gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Evolución del Promedio</CardTitle>
-                    <CardDescription>Tu rendimiento a través de los semestres</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {trendData.map((data, index) => {
-                        const isLast = index === trendData.length - 1
-                        const prevData = index > 0 ? trendData[index - 1] : null
-                        const change = prevData ? data.average - prevData.average : 0
-                        
-                        return (
-                          <div key={`${data.semester}-${data.year}`} className={`flex items-center justify-between p-4 rounded-lg border ${isLast ? 'bg-blue-50 border-blue-200' : ''}`}>
-                            <div>
-                              <div className="font-medium">{data.semester} {data.year}</div>
-                              <div className="text-sm text-gray-500">{data.subjects.length} materias</div>
-                            </div>
-                            <div className="text-right">
-                              <div className={`text-lg font-bold ${getGradeColor(data.average)}`}>
-                                {data.average.toFixed(1)}
-                              </div>
-                              {change !== 0 && (
-                                <div className={`text-sm flex items-center ${change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {change > 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                                  {change > 0 ? '+' : ''}{change.toFixed(1)}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <TrendingUp className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <h3 className="text-lg font-semibold mb-2">Datos insuficientes</h3>
-                  <p className="text-gray-600">Necesitas al menos 2 semestres para ver tendencias</p>
-                </CardContent>
-              </Card>
+      {loading ? (
+        <Card>
+          <CardContent className="pt-6 text-center">
+            <BarChart3 className="w-12 h-12 mx-auto mb-4 animate-pulse" />
+            <h3 className="text-lg font-semibold mb-2">Cargando datos...</h3>
+            <p className="text-gray-600">Generando informes académicos...</p>
+          </CardContent>
+        </Card>
+      ) : semesterStats.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6 text-center">
+            <BarChart3 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+            <h3 className="text-lg font-semibold mb-2">
+              {error ? "Error cargando datos" : "No hay datos disponibles"}
+            </h3>
+            <p className="text-gray-600">
+              {error ? error : "Registra algunas notas en la sección 'Notas' para ver tu consolidado académico"}
+            </p>
+            {!error && (
+              <Link href="/grades" className="inline-block mt-4">
+                <Button>
+                  <Calculator className="w-4 h-4 mr-2" />
+                  Ir a Notas
+                </Button>
+              </Link>
             )}
-          </div>
-        </TabsContent>
+          </CardContent>
+        </Card>
+      ) : (
+        <Tabs defaultValue="consolidado" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="consolidado">Consolidado</TabsTrigger>
+            <TabsTrigger value="tendencias">Tendencias</TabsTrigger>
+            <TabsTrigger value="comparacion">Comparación</TabsTrigger>
+            <TabsTrigger value="recomendaciones">Recomendaciones</TabsTrigger>
+          </TabsList>
 
-        {/* Comparación entre Materias */}
-        <TabsContent value="comparacion" className="space-y-6">
-          <div className="space-y-6">
-            <h2 className="text-2xl font-semibold flex items-center">
-              <BarChart3 className="w-5 h-5 mr-2" />
-              Comparación entre Materias
-            </h2>
-
-            {subjectComparison.length > 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Ranking de Materias</CardTitle>
-                  <CardDescription>Ordenadas por rendimiento actual</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {subjectComparison.map((subject, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                            index === 0 ? 'bg-yellow-100 text-yellow-800' :
-                            index === 1 ? 'bg-gray-100 text-gray-800' :
-                            index === 2 ? 'bg-orange-100 text-orange-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {index + 1}
-                          </div>
-                          <div>
-                            <div className="font-medium">{subject.subjectName}</div>
-                            <div className="text-sm text-gray-500">Prof. {subject.professorName}</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={`text-lg font-bold ${getGradeColor(subject.currentGrade)}`}>
-                            {subject.currentGrade.toFixed(1)}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {subject.completedActivities}/{subject.totalActivities} actividades
-                          </div>
-                        </div>
+          {/* Consolidado por Semestre */}
+          <TabsContent value="consolidado" className="space-y-6">
+            {selectedSemesterData ? (
+              <>
+                {/* Resumen del Semestre */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Promedio General</CardTitle>
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className={`text-2xl font-bold ${getGradeColor(selectedSemesterData.averageGrade)}`}>
+                        {selectedSemesterData.averageGrade.toFixed(1)}
                       </div>
+                      <Progress value={(selectedSemesterData.averageGrade / 5) * 100} className="mt-2" />
+                      <div className="text-xs text-gray-500 mt-1">Escala 0.0 - 5.0</div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Materias</CardTitle>
+                      <BookOpen className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{selectedSemesterData.totalSubjects}</div>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedSemesterData.completedSubjects} con todas las actividades
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Nota Más Alta</CardTitle>
+                      <Award className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-green-600">
+                        {selectedSemesterData.highestGrade.toFixed(1)}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Nota Más Baja</CardTitle>
+                      <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-red-600">
+                        {selectedSemesterData.lowestGrade.toFixed(1)}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Detalle por Materia */}
+                <div className="space-y-6">
+                  <h2 className="text-2xl font-semibold flex items-center">
+                    <Calendar className="w-5 h-5 mr-2" />
+                    {selectedSemester} - Detalle por Materia
+                  </h2>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {semesterSubjects.map((subject, index) => (
+                      <Card key={index}>
+                        <CardHeader>
+                          <CardTitle className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {getStatusIcon(subject)}
+                              {subject.subjectName}
+                            </div>
+                            <Badge variant={getGradeBadgeVariant(subject.currentGrade)}>
+                              {subject.currentGrade.toFixed(1)}
+                            </Badge>
+                          </CardTitle>
+                          <CardDescription>
+                            Prof. {subject.professorName} | {subject.completedActivities}/{subject.totalActivities} actividades
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            <div>
+                              <div className="flex justify-between text-sm mb-1">
+                                <span>Nota actual</span>
+                                <span>{subject.currentGrade.toFixed(1)}/5.0</span>
+                              </div>
+                              <Progress value={(subject.currentGrade / 5) * 100} className="h-2" />
+                            </div>
+
+                            <div>
+                              <div className="flex justify-between text-sm mb-1">
+                                <span>Progreso</span>
+                                <span>{Math.round((subject.completedActivities / subject.totalActivities) * 100)}%</span>
+                              </div>
+                              <Progress value={(subject.completedActivities / subject.totalActivities) * 100} className="h-2" />
+                            </div>
+
+                            {subject.currentGrade < 3.0 && subject.currentGrade > 0 && (
+                              <div className="flex items-center gap-2 text-sm text-red-600">
+                                <AlertTriangle className="w-4 h-4" />
+                                <span>Necesita mejorar para aprobar</span>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </>
             ) : (
               <Card>
                 <CardContent className="pt-6 text-center">
                   <BarChart3 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <h3 className="text-lg font-semibold mb-2">Sin datos para comparar</h3>
-                  <p className="text-gray-600">Agrega notas para ver la comparación entre materias</p>
+                  <h3 className="text-lg font-semibold mb-2">Selecciona un semestre</h3>
+                  <p className="text-gray-600">Elige un semestre para ver el consolidado de notas</p>
                 </CardContent>
               </Card>
             )}
-          </div>
-        </TabsContent>
+          </TabsContent>
 
-        {/* Recomendaciones Personalizadas */}
-        <TabsContent value="recomendaciones" className="space-y-6">
-          <div className="space-y-6">
-            <h2 className="text-2xl font-semibold flex items-center">
-              <Brain className="w-5 h-5 mr-2" />
-              Recomendaciones Personalizadas
-            </h2>
+          {/* Análisis de Tendencias */}
+          <TabsContent value="tendencias" className="space-y-6">
+            <div className="space-y-6">
+              <h2 className="text-2xl font-semibold flex items-center">
+                <TrendingUp className="w-5 h-5 mr-2" />
+                Análisis de Tendencias
+              </h2>
 
-            {recommendations.length > 0 ? (
-              <div className="space-y-4">
-                {recommendations.map((rec, index) => {
-                  const Icon = rec.icon
-                  return (
-                    <Card key={index} className={`border-l-4 ${
-                      rec.type === 'success' ? 'border-green-500 bg-green-50' :
-                      rec.type === 'warning' ? 'border-yellow-500 bg-yellow-50' :
-                      'border-blue-500 bg-blue-50'
-                    }`}>
-                      <CardContent className="pt-6">
-                        <div className="flex items-start gap-4">
-                          <Icon className={`w-6 h-6 mt-1 ${
-                            rec.type === 'success' ? 'text-green-600' :
-                            rec.type === 'warning' ? 'text-yellow-600' :
-                            'text-blue-600'
-                          }`} />
-                          <div className="flex-1">
-                            <h3 className="font-semibold mb-2">{rec.title}</h3>
-                            <p className="text-gray-700 mb-3">{rec.description}</p>
-                            {rec.action && (
-                              <div className={`text-sm font-medium ${
-                                rec.type === 'success' ? 'text-green-700' :
-                                rec.type === 'warning' ? 'text-yellow-700' :
-                                'text-blue-700'
-                              }`}>
-                                💡 {rec.action}
+              {trendData.length >= 2 ? (
+                <div className="grid gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Evolución del Promedio</CardTitle>
+                      <CardDescription>Tu rendimiento a través de los semestres</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {trendData.map((data, index) => {
+                          const isLast = index === trendData.length - 1
+                          const prevData = index > 0 ? trendData[index - 1] : null
+                          const change = prevData ? data.average - prevData.average : 0
+                          
+                          return (
+                            <div key={`${data.semester}-${data.year}`} className={`flex items-center justify-between p-4 rounded-lg border ${isLast ? 'bg-blue-50 border-blue-200' : ''}`}>
+                              <div>
+                                <div className="font-medium">{data.semester} {data.year}</div>
+                                <div className="text-sm text-gray-500">{data.subjects.length} materias</div>
                               </div>
-                            )}
+                              <div className="text-right">
+                                <div className={`text-lg font-bold ${getGradeColor(data.average)}`}>
+                                  {data.average.toFixed(1)}
+                                </div>
+                                {change !== 0 && (
+                                  <div className={`text-sm flex items-center ${change > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {change > 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                                    {change > 0 ? '+' : ''}{change.toFixed(1)}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <TrendingUp className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <h3 className="text-lg font-semibold mb-2">Datos insuficientes</h3>
+                    <p className="text-gray-600">Necesitas al menos 2 semestres para ver tendencias</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Comparación entre Materias */}
+          <TabsContent value="comparacion" className="space-y-6">
+            <div className="space-y-6">
+              <h2 className="text-2xl font-semibold flex items-center">
+                <BarChart3 className="w-5 h-5 mr-2" />
+                Comparación entre Materias
+              </h2>
+
+              {subjectComparison.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Ranking de Materias</CardTitle>
+                    <CardDescription>Ordenadas por rendimiento actual</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {subjectComparison.map((subject, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                              index === 0 ? 'bg-yellow-100 text-yellow-800' :
+                              index === 1 ? 'bg-gray-100 text-gray-800' :
+                              index === 2 ? 'bg-orange-100 text-orange-800' :
+                              'bg-blue-100 text-blue-800'
+                            }`}>
+                              {index + 1}
+                            </div>
+                            <div>
+                              <div className="font-medium">{subject.subjectName}</div>
+                              <div className="text-sm text-gray-500">Prof. {subject.professorName}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className={`text-lg font-bold ${getGradeColor(subject.currentGrade)}`}>
+                              {subject.currentGrade.toFixed(1)}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {subject.completedActivities}/{subject.totalActivities} actividades
+                            </div>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <Brain className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <h3 className="text-lg font-semibold mb-2">Sin recomendaciones disponibles</h3>
-                  <p className="text-gray-600">Agrega más notas para recibir recomendaciones personalizadas</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <BarChart3 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <h3 className="text-lg font-semibold mb-2">Sin datos para comparar</h3>
+                    <p className="text-gray-600">Agrega notas para ver la comparación entre materias</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Recomendaciones Personalizadas */}
+          <TabsContent value="recomendaciones" className="space-y-6">
+            <div className="space-y-6">
+              <h2 className="text-2xl font-semibold flex items-center">
+                <Brain className="w-5 h-5 mr-2" />
+                Recomendaciones Personalizadas
+              </h2>
+
+              {recommendations.length > 0 ? (
+                <div className="space-y-4">
+                  {recommendations.map((rec, index) => {
+                    const Icon = rec.icon
+                    return (
+                      <Card key={index} className={`border-l-4 ${
+                        rec.type === 'success' ? 'border-green-500 bg-green-50' :
+                        rec.type === 'warning' ? 'border-yellow-500 bg-yellow-50' :
+                        'border-blue-500 bg-blue-50'
+                      }`}>
+                        <CardContent className="pt-6">
+                          <div className="flex items-start gap-4">
+                            <Icon className={`w-6 h-6 mt-1 ${
+                              rec.type === 'success' ? 'text-green-600' :
+                              rec.type === 'warning' ? 'text-yellow-600' :
+                              'text-blue-600'
+                            }`} />
+                            <div className="flex-1">
+                              <h3 className="font-semibold mb-2">{rec.title}</h3>
+                              <p className="text-gray-700 mb-3">{rec.description}</p>
+                              {rec.action && (
+                                <div className={`text-sm font-medium ${
+                                  rec.type === 'success' ? 'text-green-700' :
+                                  rec.type === 'warning' ? 'text-yellow-700' :
+                                  'text-blue-700'
+                                }`}>
+                                  💡 {rec.action}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <Brain className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <h3 className="text-lg font-semibold mb-2">Sin recomendaciones disponibles</h3>
+                    <p className="text-gray-600">Agrega más notas para recibir recomendaciones personalizadas</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   )
 }

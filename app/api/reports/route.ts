@@ -13,6 +13,7 @@ export async function GET() {
     }
 
     const userId = session.user.email // Usar email como ID del usuario
+    console.log("📊 Generando informes para usuario:", userId)
 
     // Obtener datos de MongoDB o fallback local
     let studentGrades = []
@@ -49,7 +50,10 @@ export async function GET() {
 
     for (const gradeRecord of studentGrades) {
       const plan = evaluationPlans.find((p) => p._id.toString() === gradeRecord.evaluationPlanId)
-      if (!plan) continue
+      if (!plan) {
+        console.warn(`Plan no encontrado para evaluationPlanId: ${gradeRecord.evaluationPlanId}`)
+        continue
+      }
 
       // Buscar información adicional del grupo en Supabase
       const groupInfo = groups?.find((g) => g.id === plan.groupId)
@@ -74,16 +78,15 @@ export async function GET() {
 
         if (currentGrade > 0) {
           completedActivities++
-          // Convertir a escala 0-5 y ponderar
-          const normalizedGrade = (currentGrade / activity.maxGrade) * 5
-          totalWeightedGrade += normalizedGrade * activity.percentage
+          // Ponderar por porcentaje: nota * (porcentaje / 100)
+          totalWeightedGrade += currentGrade * (activity.percentage / 100)
           totalWeight += activity.percentage
         }
       }
 
-      // Calcular promedio ponderado en escala 0-5
-      const currentGrade = totalWeight > 0 ? totalWeightedGrade / totalWeight : 0
-      const projectedGrade = totalWeightedGrade / 100 // Proyección basada en actividades completadas
+      // Calcular promedio ponderado (ya está en escala 0-5)
+      const currentGrade = totalWeight > 0 ? totalWeightedGrade : 0
+      const projectedGrade = totalWeightedGrade // Proyección basada en actividades completadas
 
       const subjectReport = {
         subjectName: plan.subjectName || groupInfo?.subjects?.name || "Materia Desconocida",
@@ -121,6 +124,12 @@ export async function GET() {
         semesterData.totalGrades++
         semesterData.gradeSum += currentGrade
       }
+
+      console.log(`📊 Subject: ${plan.subjectName}`)
+      console.log(`📊 Total weighted grade: ${totalWeightedGrade}`)
+      console.log(`📊 Total weight: ${totalWeight}`)
+      console.log(`📊 Final grade: ${currentGrade}`)
+      console.log(`📊 Activities:`, activities.map(a => `${a.name}: ${a.currentGrade} (${a.percentage}%)`).join(', '))
     }
 
     // Calcular estadísticas por semestre
@@ -148,111 +157,8 @@ export async function GET() {
       return b.semester.localeCompare(a.semester)
     })
 
-    console.log(`✅ Generated reports for ${subjectReports.length} subjects (decimal scale 0-5)`)
+    console.log(`✅ Generated reports for ${subjectReports.length} subjects with real data`)
     console.log(`📈 Generated ${semesterStats.length} semester statistics`)
-    
-    if (semesterStats.length === 0) {
-      console.log("⚠️ No semester stats found - possible causes:")
-      console.log("   - No student_grades records")
-      console.log("   - No evaluation_plans records") 
-      console.log("   - studentId mismatch between grades and current user")
-      
-      // Crear datos de prueba temporales si no hay datos reales
-      console.log("🔧 Creating sample data for demonstration...")
-      
-      const sampleSubjectReports = [
-        {
-          subjectName: "Bases de Datos",
-          professorName: "Mónica Rojas",
-          semester: "2023-2",
-          year: 2023,
-          currentGrade: 4.2,
-          projectedGrade: 4.1,
-          completedActivities: 6,
-          totalActivities: 8,
-          activities: []
-        },
-        {
-          subjectName: "Programación Orientada a Objetos",
-          professorName: "Carlos Mendoza", 
-          semester: "2023-2",
-          year: 2023,
-          currentGrade: 3.8,
-          projectedGrade: 3.9,
-          completedActivities: 3,
-          totalActivities: 4,
-          activities: []
-        },
-        {
-          subjectName: "Cálculo Diferencial",
-          professorName: "Ana García",
-          semester: "2023-2", 
-          year: 2023,
-          currentGrade: 3.5,
-          projectedGrade: 3.6,
-          completedActivities: 2,
-          totalActivities: 4,
-          activities: []
-        },
-        {
-          subjectName: "Estructuras de Datos",
-          professorName: "Carlos Mendoza",
-          semester: "2024-1", 
-          year: 2024,
-          currentGrade: 4.0,
-          projectedGrade: 4.1,
-          completedActivities: 3,
-          totalActivities: 4,
-          activities: []
-        },
-        {
-          subjectName: "Algoritmos y Complejidad",
-          professorName: "Ana García",
-          semester: "2024-2", 
-          year: 2024,
-          currentGrade: 3.7,
-          projectedGrade: 3.8,
-          completedActivities: 2,
-          totalActivities: 5,
-          activities: []
-        }
-      ]
-      
-      const sampleSemesterStats = [
-        {
-          semester: "2023-2",
-          year: 2023,
-          averageGrade: 3.83,
-          totalSubjects: 3,
-          completedSubjects: 1,
-          highestGrade: 4.2,
-          lowestGrade: 3.5
-        },
-        {
-          semester: "2024-1", 
-          year: 2024,
-          averageGrade: 4.0,
-          totalSubjects: 1,
-          completedSubjects: 0,
-          highestGrade: 4.0,
-          lowestGrade: 4.0
-        },
-        {
-          semester: "2024-2",
-          year: 2024,
-          averageGrade: 3.7,
-          totalSubjects: 1,
-          completedSubjects: 0,
-          highestGrade: 3.7,
-          lowestGrade: 3.7
-        }
-      ]
-      
-      return NextResponse.json({
-        subjectReports: sampleSubjectReports,
-        semesterStats: sampleSemesterStats,
-      })
-    }
     
     return NextResponse.json({
       subjectReports,
